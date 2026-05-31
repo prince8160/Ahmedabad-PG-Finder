@@ -51,13 +51,22 @@ export default function PGApplication() {
   const [activeTab, setActiveTab] = useState<'explore' | 'admin' | 'my-listings' | 'login' | 'signup'>('explore');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [loginMessage, setLoginMessage] = useState('');
 
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, (currentUser) => {
       setUser(currentUser);
+      setAuthLoading(false);
     });
     return () => unsubscribe();
   }, []);
+
+  useEffect(() => {
+    if (!authLoading && !user && activeTab !== 'login' && activeTab !== 'signup') {
+      setActiveTab('login');
+    }
+  }, [authLoading, user, activeTab]);
 
   const handleLogin = async () => {
     try {
@@ -79,6 +88,8 @@ export default function PGApplication() {
           photoURL: loggedInUser.photoURL || ''
         });
       }
+      setLoginMessage('');
+      setActiveTab('admin');
     } catch (error) {
       console.error("Login failed", error);
       alert("Login failed: " + (error instanceof Error ? error.message : "Unknown error"));
@@ -88,7 +99,8 @@ export default function PGApplication() {
   const handleLogout = async () => {
     try {
       await signOut(auth);
-      setActiveTab('explore');
+      setLoginMessage('');
+      setActiveTab('login');
     } catch (err) {
       console.error(err);
     }
@@ -128,11 +140,19 @@ export default function PGApplication() {
 
       {/* Main Content Area */}
       <main className="flex-1 max-w-7xl w-full mx-auto p-4 md:p-6 lg:p-8">
-        {activeTab === 'explore' && <ExploreTab />}
-        {activeTab === 'my-listings' && <MyListingsTab />}
-        {activeTab === 'admin' && <AdminTab />}
-        {activeTab === 'login' && <LoginTab setActiveTab={setActiveTab} handleGoogleLogin={handleLogin} />}
-        {activeTab === 'signup' && <SignupTab setActiveTab={setActiveTab} handleGoogleLogin={handleLogin} />}
+        {authLoading ? (
+          <div className="flex items-center justify-center p-12">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+          </div>
+        ) : (
+          <>
+            {activeTab === 'explore' && <ExploreTab />}
+            {activeTab === 'my-listings' && <MyListingsTab />}
+            {activeTab === 'admin' && <AdminTab />}
+            {activeTab === 'login' && <LoginTab setActiveTab={setActiveTab} handleGoogleLogin={handleLogin} loginMessage={loginMessage} />}
+            {activeTab === 'signup' && <SignupTab setActiveTab={setActiveTab} handleGoogleLogin={handleLogin} setLoginMessage={setLoginMessage} />}
+          </>
+        )}
       </main>
     </div>
   );
@@ -292,7 +312,7 @@ function MyListingsTab() {
   );
 }
 
-function LoginTab({ setActiveTab, handleGoogleLogin }: { setActiveTab: (tab: any) => void, handleGoogleLogin: () => void }) {
+function LoginTab({ setActiveTab, handleGoogleLogin, loginMessage }: { setActiveTab: (tab: any) => void, handleGoogleLogin: () => void, loginMessage: string }) {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -305,10 +325,12 @@ function LoginTab({ setActiveTab, handleGoogleLogin }: { setActiveTab: (tab: any
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
-      setActiveTab('explore');
+      setActiveTab('admin');
     } catch (err: any) {
       if (err.code === 'auth/operation-not-allowed') {
         setError(`Provider Disabled (auth/operation-not-allowed). Please ensure Email/Password is enabled in project: ${auth.app.options.projectId}`);
+      } else if (err.code === 'auth/invalid-credential') {
+        setError('Invalid email or password. Please check your credentials and try again.');
       } else {
         setError(err.message || 'Failed to sign in');
       }
@@ -321,7 +343,8 @@ function LoginTab({ setActiveTab, handleGoogleLogin }: { setActiveTab: (tab: any
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto mt-12">
       <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
         <h2 className="text-2xl font-bold text-slate-900 mb-6 font-sans">Sign In</h2>
-        {error && <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-4 text-sm">{error}</div>}
+        {loginMessage && !error && <div className="bg-green-50 text-green-700 p-3 rounded-xl mb-4 text-sm font-medium">{loginMessage}</div>}
+        {error && <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-4 text-sm font-medium">{error}</div>}
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
@@ -376,7 +399,7 @@ function LoginTab({ setActiveTab, handleGoogleLogin }: { setActiveTab: (tab: any
   );
 }
 
-function SignupTab({ setActiveTab, handleGoogleLogin }: { setActiveTab: (tab: any) => void, handleGoogleLogin: () => void }) {
+function SignupTab({ setActiveTab, handleGoogleLogin, setLoginMessage }: { setActiveTab: (tab: any) => void, handleGoogleLogin: () => void, setLoginMessage: (msg: string) => void }) {
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -389,8 +412,6 @@ function SignupTab({ setActiveTab, handleGoogleLogin }: { setActiveTab: (tab: an
     setLoading(true);
 
     try {
-      console.log("Firebase config projectId:", auth.app.options.projectId);
-      console.log("Firebase config apiKey:", auth.app.options.apiKey);
       const result = await createUserWithEmailAndPassword(auth, email, password);
       const user = result.user;
       
@@ -412,14 +433,22 @@ function SignupTab({ setActiveTab, handleGoogleLogin }: { setActiveTab: (tab: an
           return;
         }
       }
-      setActiveTab('explore');
+      
+      // Successfully registered. Sign out, show message, and redirect to login.
+      await signOut(auth);
+      setLoginMessage('Account created successfully. Please log in to continue.');
+      setActiveTab('login');
+      
     } catch (err: any) {
       if (err.code === 'auth/operation-not-allowed') {
         setError(`Provider Disabled (auth/operation-not-allowed). Please ensure Email/Password is enabled in project: ${auth.app.options.projectId}`);
+      } else if (err.code === 'auth/email-already-in-use') {
+        setError('This email address is already in use.');
+      } else if (err.code === 'auth/weak-password') {
+        setError('Password should be at least 6 characters.');
       } else {
         setError(err.message || 'Failed to create account');
       }
-    } finally {
       setLoading(false);
     }
   };
@@ -428,7 +457,7 @@ function SignupTab({ setActiveTab, handleGoogleLogin }: { setActiveTab: (tab: an
     <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto mt-12">
       <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
         <h2 className="text-2xl font-bold text-slate-900 mb-6 font-sans">Create an Account</h2>
-        {error && <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-4 text-sm">{error}</div>}
+        {error && <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-4 text-sm font-medium">{error}</div>}
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
