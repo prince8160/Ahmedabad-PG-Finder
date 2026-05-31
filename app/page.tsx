@@ -107,7 +107,7 @@ export default function PGApplication() {
           <div className="hidden md:flex items-center gap-6 text-sm font-medium text-slate-600">
             <button onClick={() => setActiveTab('explore')} className={`transition-colors hover:text-primary ${activeTab === 'explore' ? 'text-primary border-b-2 border-primary' : ''}`}>Explore</button>
             {user && <button onClick={() => setActiveTab('my-listings')} className={`transition-colors hover:text-primary ${activeTab === 'my-listings' ? 'text-primary border-b-2 border-primary' : ''}`}>My Listings</button>}
-            {user && <button onClick={() => setActiveTab('admin')} className={`transition-colors hover:text-primary ${activeTab === 'admin' ? 'text-primary border-b-2 border-primary' : ''}`}>Admin Panel</button>}
+            {user && <button onClick={() => setActiveTab('admin')} className={`transition-colors hover:text-primary ${activeTab === 'admin' ? 'text-primary border-b-2 border-primary' : ''}`}>Owner Dashboard</button>}
             {user ? (
               <Button variant="outline" className="rounded-full" onClick={handleLogout}>Sign Out</Button>
             ) : (
@@ -220,7 +220,7 @@ function AdminTab() {
           <Settings className="h-5 w-5" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Admin Dashboard</h1>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Owner Dashboard</h1>
           <p className="text-slate-500">Manage listings, verifications, and trust scores.</p>
         </div>
       </div>
