@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Search, MapPin, ShieldCheck, Star, Users, Map, Settings, Plus, Menu } from 'lucide-react';
 import { motion } from 'motion/react';
 import { auth, db } from '../lib/firebase';
-import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User } from 'firebase/auth';
+import { onAuthStateChanged, signInWithPopup, GoogleAuthProvider, signOut, User, createUserWithEmailAndPassword, signInWithEmailAndPassword, fetchSignInMethodsForEmail } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 // Mock data representing PG listings
@@ -48,7 +48,7 @@ const MOCK_PGS = [
 ];
 
 export default function PGApplication() {
-  const [activeTab, setActiveTab] = useState<'explore' | 'admin' | 'my-listings'>('explore');
+  const [activeTab, setActiveTab] = useState<'explore' | 'admin' | 'my-listings' | 'login' | 'signup'>('explore');
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [user, setUser] = useState<User | null>(null);
 
@@ -111,7 +111,10 @@ export default function PGApplication() {
             {user ? (
               <Button variant="outline" className="rounded-full" onClick={handleLogout}>Sign Out</Button>
             ) : (
-              <Button variant="default" className="rounded-full" onClick={handleLogin}>Sign In</Button>
+              <div className="flex items-center gap-2">
+                <Button variant="ghost" className="rounded-full" onClick={() => setActiveTab('login')}>Sign In</Button>
+                <Button variant="default" className="rounded-full" onClick={() => setActiveTab('signup')}>Sign Up</Button>
+              </div>
             )}
           </div>
           
@@ -128,6 +131,8 @@ export default function PGApplication() {
         {activeTab === 'explore' && <ExploreTab />}
         {activeTab === 'my-listings' && <MyListingsTab />}
         {activeTab === 'admin' && <AdminTab />}
+        {activeTab === 'login' && <LoginTab setActiveTab={setActiveTab} handleGoogleLogin={handleLogin} />}
+        {activeTab === 'signup' && <SignupTab setActiveTab={setActiveTab} handleGoogleLogin={handleLogin} />}
       </main>
     </div>
   );
@@ -282,6 +287,208 @@ function MyListingsTab() {
         <Button className="h-12 px-8 rounded-xl text-md flex items-center gap-2">
           <Plus className="h-5 w-5" /> Add New PG Listing
         </Button>
+      </div>
+    </motion.div>
+  );
+}
+
+function LoginTab({ setActiveTab, handleGoogleLogin }: { setActiveTab: (tab: any) => void, handleGoogleLogin: () => void }) {
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      await signInWithEmailAndPassword(auth, email, password);
+      setActiveTab('explore');
+    } catch (err: any) {
+      if (err.code === 'auth/operation-not-allowed') {
+        setError(`Provider Disabled (auth/operation-not-allowed). Please ensure Email/Password is enabled in project: ${auth.app.options.projectId}`);
+      } else {
+        setError(err.message || 'Failed to sign in');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto mt-12">
+      <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
+        <h2 className="text-2xl font-bold text-slate-900 mb-6 font-sans">Sign In</h2>
+        {error && <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-4 text-sm">{error}</div>}
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Email address</label>
+            <input 
+              type="email" 
+              required 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+            <input 
+              type="password" 
+              required 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+            />
+          </div>
+          <Button type="submit" className="w-full rounded-xl h-11" disabled={loading}>
+            {loading ? 'Signing in...' : 'Sign In'}
+          </Button>
+        </form>
+
+        <div className="mt-6 flex items-center">
+          <div className="flex-1 border-t border-slate-200"></div>
+          <span className="px-4 text-sm text-slate-400">Or continue with</span>
+          <div className="flex-1 border-t border-slate-200"></div>
+        </div>
+
+        <div className="mt-6">
+          <Button type="button" variant="outline" className="w-full rounded-xl h-11 border-slate-200" onClick={handleGoogleLogin}>
+            Google
+          </Button>
+        </div>
+
+        <p className="mt-8 text-center text-sm text-slate-500">
+          Don't have an account?{' '}
+          <button type="button" onClick={() => setActiveTab('signup')} className="font-semibold text-primary hover:underline">
+            Sign Up
+          </button>
+        </p>
+
+        <p className="mt-4 text-center text-xs text-slate-400">
+          Connected to Firebase Project: {auth.app.options.projectId}
+        </p>
+      </div>
+    </motion.div>
+  );
+}
+
+function SignupTab({ setActiveTab, handleGoogleLogin }: { setActiveTab: (tab: any) => void, handleGoogleLogin: () => void }) {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(false);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError('');
+    setLoading(true);
+
+    try {
+      console.log("Firebase config projectId:", auth.app.options.projectId);
+      console.log("Firebase config apiKey:", auth.app.options.apiKey);
+      const result = await createUserWithEmailAndPassword(auth, email, password);
+      const user = result.user;
+      
+      const userRef = doc(db, 'users', user.uid);
+      try {
+        await setDoc(userRef, {
+          uid: user.uid,
+          name: name,
+          email: user.email,
+          role: 'user', 
+          verifiedOwner: false,
+          createdAt: serverTimestamp(),
+          photoURL: ''
+        });
+      } catch (dbErr: any) {
+        console.error("Failed to create user profile in Firestore", dbErr);
+        if (dbErr.code === 'permission-denied') {
+          setError(`Firestore Permission Denied. Please open Firebase Console for project '${auth.app.options.projectId}', go to Firestore Database -> Rules, and allow writes for authenticated users. Example: allow read, write: if request.auth != null;`);
+          return;
+        }
+      }
+      setActiveTab('explore');
+    } catch (err: any) {
+      if (err.code === 'auth/operation-not-allowed') {
+        setError(`Provider Disabled (auth/operation-not-allowed). Please ensure Email/Password is enabled in project: ${auth.app.options.projectId}`);
+      } else {
+        setError(err.message || 'Failed to create account');
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="max-w-md mx-auto mt-12">
+      <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
+        <h2 className="text-2xl font-bold text-slate-900 mb-6 font-sans">Create an Account</h2>
+        {error && <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-4 text-sm">{error}</div>}
+        
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Full Name</label>
+            <input 
+              type="text" 
+              required 
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Email address</label>
+            <input 
+              type="email" 
+              required 
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+            />
+          </div>
+          <div>
+            <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
+            <input 
+              type="password" 
+              required 
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
+              minLength={6}
+            />
+          </div>
+          <Button type="submit" className="w-full rounded-xl h-11" disabled={loading}>
+            {loading ? 'Creating account...' : 'Create Account'}
+          </Button>
+        </form>
+
+        <div className="mt-6 flex items-center">
+          <div className="flex-1 border-t border-slate-200"></div>
+          <span className="px-4 text-sm text-slate-400">Or continue with</span>
+          <div className="flex-1 border-t border-slate-200"></div>
+        </div>
+
+        <div className="mt-6">
+          <Button type="button" variant="outline" className="w-full rounded-xl h-11 border-slate-200" onClick={handleGoogleLogin}>
+            Google
+          </Button>
+        </div>
+
+        <p className="mt-8 text-center text-sm text-slate-500">
+          Already have an account?{' '}
+          <button type="button" onClick={() => setActiveTab('login')} className="font-semibold text-primary hover:underline">
+            Sign In
+          </button>
+        </p>
+
+        <p className="mt-4 text-center text-xs text-slate-400">
+          Connected to Firebase Project: {auth.app.options.projectId}
+        </p>
       </div>
     </motion.div>
   );
