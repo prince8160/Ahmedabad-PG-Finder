@@ -321,18 +321,37 @@ function LoginTab({ setActiveTab, handleGoogleLogin, loginMessage }: { setActive
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+
+    if (!email.trim() || !password.trim()) {
+      setError('Please enter your email and password.');
+      return;
+    }
+
     setLoading(true);
 
     try {
       await signInWithEmailAndPassword(auth, email, password);
       setActiveTab('admin');
     } catch (err: any) {
-      if (err.code === 'auth/operation-not-allowed') {
-        setError(`Provider Disabled (auth/operation-not-allowed). Please ensure Email/Password is enabled in project: ${auth.app.options.projectId}`);
-      } else if (err.code === 'auth/invalid-credential') {
-        setError('Invalid email or password. Please check your credentials and try again.');
-      } else {
-        setError(err.message || 'Failed to sign in');
+      switch (err.code) {
+        case 'auth/invalid-email':
+          setError('Invalid email address.');
+          break;
+        case 'auth/user-not-found':
+          setError('Invalid email.');
+          break;
+        case 'auth/wrong-password':
+          setError('Invalid password.');
+          break;
+        case 'auth/invalid-credential':
+          setError('Invalid email or password.');
+          break;
+        case 'auth/too-many-requests':
+          setError('Too many failed login attempts. Please try again later.');
+          break;
+        default:
+          setError('Failed to sign in. Please try again.');
+          break;
       }
     } finally {
       setLoading(false);
@@ -344,14 +363,12 @@ function LoginTab({ setActiveTab, handleGoogleLogin, loginMessage }: { setActive
       <div className="bg-white p-8 rounded-2xl border border-slate-200 shadow-sm">
         <h2 className="text-2xl font-bold text-slate-900 mb-6 font-sans">Sign In</h2>
         {loginMessage && !error && <div className="bg-green-50 text-green-700 p-3 rounded-xl mb-4 text-sm font-medium">{loginMessage}</div>}
-        {error && <div className="bg-red-50 text-red-600 p-3 rounded-xl mb-4 text-sm font-medium">{error}</div>}
         
         <form onSubmit={handleSubmit} className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-slate-700 mb-1">Email address</label>
             <input 
               type="email" 
-              required 
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
@@ -361,7 +378,6 @@ function LoginTab({ setActiveTab, handleGoogleLogin, loginMessage }: { setActive
             <label className="block text-sm font-medium text-slate-700 mb-1">Password</label>
             <input 
               type="password" 
-              required 
               value={password}
               onChange={(e) => setPassword(e.target.value)}
               className="w-full px-4 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-primary/20 transition-all font-medium"
@@ -371,6 +387,12 @@ function LoginTab({ setActiveTab, handleGoogleLogin, loginMessage }: { setActive
             {loading ? 'Signing in...' : 'Sign In'}
           </Button>
         </form>
+
+        {error && (
+          <div className="mt-4 bg-red-50 text-red-600 p-3 rounded-xl text-sm font-medium border border-red-100 flex items-center justify-center">
+            {error}
+          </div>
+        )}
 
         <div className="mt-6 flex items-center">
           <div className="flex-1 border-t border-slate-200"></div>
