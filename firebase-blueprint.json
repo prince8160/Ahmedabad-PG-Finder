@@ -1,0 +1,42 @@
+{
+  "__schema_version": "1.0",
+  "collections": {
+    "pgs": {
+      "__doc__": "PGs represents a single PG listing created by an owner.",
+      "fields": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "area": { "type": "string" },
+        "address": { "type": "string" },
+        "rent": { "type": "number" },
+        "deposit": { "type": "number" },
+        "type": { "type": "string" },
+        "foodAvailable": { "type": "boolean" },
+        "verified": { "type": "boolean" },
+        "imageUrls": { "type": "array" },
+        "availableBeds": { "type": "number" },
+        "facilities": { "type": "array" },
+        "description": { "type": "string" },
+        "rules": { "type": "string" },
+        "curfew": { "type": "string" },
+        "ownerName": { "type": "string" },
+        "mobileNumber": { "type": "string" },
+        "whatsappNumber": { "type": "string" },
+        "availabilityState": { "type": "string" },
+        "lastUpdated": { "type": "string" },
+        "totalViews": { "type": "number" },
+        "rating": { "type": "number" },
+        "reviewCount": { "type": "number" },
+        "ownerId": { "type": "string", "__doc__": "The uid of the owner who created this listing" },
+        "createdAt": { "type": "timestamp" }
+      },
+      "relationships": {
+        "owner": {
+          "type": "belongsTo",
+          "target": "users",
+          "foreignKey": "ownerId"
+        }
+      }
+    }
+  }
+}
